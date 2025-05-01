@@ -285,14 +285,7 @@ class TrustFramework:
                     
                 except json.JSONDecodeError:
                     # Handle invalid JSON response
-                    return [{
-                        'text': text,
-                        'trust_score': trust_score,
-                        'positive_score': positive_score,
-                        'negative_score': negative_score,
-                        'vector_id': vector_id,
-                        'timestamp': datetime.now().isoformat()
-                    }]
+                    return []
 
     def retrieve(self, query: str) -> Dict[str, Any]:
         """
