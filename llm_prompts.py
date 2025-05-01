@@ -13,24 +13,20 @@ class LLMPrompts:
         "4. There can be some overlap between units when necessary\n"
         "5. Be factually accurate and preserve the original intent\n\n"
         "Text: {text}\n\n"
-        "If the text is short enough and cannot be decomposed, just return 'False', "
+        "If the text is short(basic) enough and cannot be decomposed, just return 'False', "
         "else return a JSON list of 3 decomposed text units, one per line."
     )
-    
-    # Prompt for checking factual consistency
-    CONSISTENCY_CHECK = (
-        "Compare the following new information with the existing knowledge:\n\n"
-        "New information: {new_text}\n\n"
-        "Existing information: {existing_text}\n\n"
-        "Evaluate:\n"
-        "1. Are there any direct contradictions?\n"
-        "2. Do the facts align with existing knowledge?\n"
-        "3. Is the information logically consistent?\n\n"
-        "Return a float between 0 and 1, where:\n"
-        "1.0 = completely consistent\n"
-        "0.0 = completely inconsistent"
+    # prompt for reasoning about if text_1 implied text_2
+    IMPLICATION_CHECK = (
+        "Check if the following text_1 implies the following text_2:\n\n"
+        "Text_1: {text_1}\n"
+        "Text_2: {text_2}\n\n"
+        "You should only consider the information in text_1 and text_2, and not any other prior information.\n"
+        "Return Positive if based on text_1 you can conclude text_2 is true\n"
+        "Return Negative if based on text_1 you can conclude text_2 is false\n"
+        "Return Not Sure if based on text_1 you cannot conclude text_2 is true or false\n"
     )
-    
+
     # Prompt for trust score calculation
     TRUST_EVALUATION = (
         "Evaluate the trustworthiness of the following information:\n\n"
