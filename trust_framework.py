@@ -39,6 +39,7 @@ class TrustFramework:
         retrieve_credulity_factor: float = 0.5,
         retrieve_consistency_threshold: float = 0.5,
         retrieve_search_k: int = 50,
+        word_limit: int = 1000,
     ):
         """
         Initialize the Trust Framework with configurable parameters
@@ -63,7 +64,7 @@ class TrustFramework:
         self.retrieve_credulity_factor = retrieve_credulity_factor
         self.retrieve_consistency_threshold = retrieve_consistency_threshold
         self.retrieve_search_k = retrieve_search_k
-
+        self.word_limit = word_limit
         # Initialize HNSW index - very fast search with good accuracy
         self.index = faiss.IndexHNSWFlat(vector_dim, 32)  # 32 is M (max connections)
         self.index.hnsw.efConstruction = 200  # Higher value = better accuracy but slower construction
@@ -205,8 +206,40 @@ class TrustFramework:
                 self.stored_items[vector_id].negative_score = negative_score
 
 
-       
+    
 
+
+    def handle_long_text(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Handle text that exceeds the word limit by decomposing it
+        
+        Args:
+            text: Input text to be processed
+            
+        Returns:
+            List of Dictionary containing processed information and trust metrics
+        """
+        # Decompose the text
+        prompt = LLMPrompts.DECOMPOSE.format(text=text)
+        response = self.llm.generate(prompt)
+        
+        if response == "False":
+            # Even long text cannot be meaningfully decomposed
+            return []
+            
+        try:
+            # Parse JSON list of decomposed units
+            decomposed_units = json.loads(response)
+            
+            # Process each decomposed unit recursively
+            results = []
+            for unit in decomposed_units:
+                results.extend(self.input(unit))
+            return results
+            
+        except json.JSONDecodeError:
+            # Handle invalid JSON response
+            return []
 
     def input(self, text: str) -> List[Dict[str, Any]]:
         """
@@ -218,6 +251,10 @@ class TrustFramework:
         Returns:
             List of Dictionary containing processed information and trust metrics
         """
+        # Check for long text first
+        if self.count_words(text) > self.word_limit:
+            return self.handle_long_text(text)
+
         # Calculate vector first to avoid duplicate calculations
         vector = self.text_to_vector(text)
         
@@ -262,30 +299,9 @@ class TrustFramework:
                 'vector_id': vector_id,
                 'timestamp': datetime.now().isoformat()
             }]
-        # the text is decomposable
+        
         else:
-            # Decompose the text
-            prompt = LLMPrompts.DECOMPOSE.format(text=text)
-            # Send to LLM and get response
-            response = self.llm.generate(prompt)  # This is a placeholder - implement actual LLM call
-            
-            if response == "False":
-                # Text cannot be decomposed further, ignore the text
-                return []
-            else:
-                try:
-                    # Parse JSON list of decomposed units
-                    decomposed_units = json.loads(response)
-                    
-                    # Process each decomposed unit recursively
-                    results = []
-                    for unit in decomposed_units:
-                        results.extend(self.input(unit))
-                    return results
-                    
-                except json.JSONDecodeError:
-                    # Handle invalid JSON response
-                    return []
+            return self.handle_long_text(text)
 
     def retrieve(self, query: str) -> Dict[str, Any]:
         """
@@ -492,3 +508,17 @@ class TrustFramework:
         
         # Reset ID counter
         self.next_id = 0 
+
+    def count_words(self, text: str) -> int:
+        """
+        Count the number of words in a string
+        
+        Args:
+            text: Input text string
+            
+        Returns:
+            int: Number of words in the text
+        """
+        # Remove extra whitespace and split
+        words = text.strip().split()
+        return len(words) 

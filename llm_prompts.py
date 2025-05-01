@@ -21,9 +21,9 @@ class LLMPrompts:
         "Check if the following text_1 implies the following text_2:\n\n"
         "Text_1: {text_1}\n"
         "Text_2: {text_2}\n\n"
-        "You should only consider the information in text_1 and text_2, and not any other prior information.\n"
-        "Return Positive if based on text_1 you can conclude text_2 is true\n"
-        "Return Negative if based on text_1 you can conclude text_2 is false\n"
+        "You check if text_1 implies text_2 purely based on the information in text_1 and text_2, and not any other prior information.\n"
+        "Return Positive if based on text_1 you can conclude every statements intext_2 are true\n"
+        "Return Negative if based on text_1 you can conclude at least one statement in text_2 is false\n"
         "Return Not Sure if based on text_1 you cannot conclude text_2 is true or false\n"
     )
 
