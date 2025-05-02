@@ -10,6 +10,7 @@ import json
 from llm_handler import LLMHandler
 from config import OPENAI_API_KEY  # Add this import at the top
 from collections import deque
+import os
 
 
 @dataclass
@@ -31,6 +32,7 @@ class TrustFramework:
         vector_dim: int = 384,
         api_key: Optional[str] = None,
         model: str = "gpt-4o",
+        db_path: str = "./db",  # Add default database path
         search_k: int = 50,
         converge_max_iterations: int = 10,
         converge_threshold: float = 0.01,
@@ -65,6 +67,7 @@ class TrustFramework:
         self.retrieve_consistency_threshold = retrieve_consistency_threshold
         self.retrieve_search_k = retrieve_search_k
         self.word_limit = word_limit
+        
         # Initialize HNSW index - very fast search with good accuracy
         self.index = faiss.IndexHNSWFlat(vector_dim, 32)  # 32 is M (max connections)
         self.index.hnsw.efConstruction = 200  # Higher value = better accuracy but slower construction
@@ -86,6 +89,16 @@ class TrustFramework:
         
         # Initialize LLM handler with config API key as fallback
         self.llm = LLMHandler(api_key=api_key or OPENAI_API_KEY, model=model)
+        
+        # Set database paths
+        self.index_path = f"{db_path}/faiss_index.bin"
+        self.metadata_path = f"{db_path}/metadata.json"
+        
+        # Try to load existing database
+        if not self.load_db():
+            # Initialize new database if loading fails
+            self.stored_items = {}
+            self.next_id = 0
         
     def text_to_vector(self, text: str) -> np.ndarray:
         """Convert text to vector using the embedding model"""
@@ -522,3 +535,88 @@ class TrustFramework:
         # Remove extra whitespace and split
         words = text.strip().split()
         return len(words) 
+
+    def write_db(self) -> bool:
+        """
+        Save the FAISS index and metadata to disk using member paths
+        
+        Returns:
+            bool: True if save successful, False otherwise
+        """
+        try:
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
+            
+            # Save FAISS index
+            faiss.write_index(self.index, self.index_path)
+            
+            # Prepare metadata for serialization
+            serializable_items = {}
+            for id, item in self.stored_items.items():
+                serializable_items[id] = {
+                    'text': item.text,
+                    'vector': item.vector.tolist(),
+                    'trust_score': item.trust_score,
+                    'positive_score': item.positive_score,
+                    'negative_score': item.negative_score,
+                    'timestamp': item.timestamp,
+                    'vector_id': item.vector_id
+                }
+            
+            metadata = {
+                'stored_items': serializable_items,
+                'next_id': self.next_id
+            }
+            
+            # Save metadata
+            with open(self.metadata_path, 'w') as f:
+                json.dump(metadata, f)
+                
+            return True
+                
+        except Exception as e:
+            print(f"Error saving database: {e}")
+            return False
+
+    def load_db(self) -> bool:
+        """
+        Load the FAISS index and metadata from disk using member paths
+        
+        Returns:
+            bool: True if load successful, False otherwise
+        """
+        try:
+            # Check if both files exist
+            if not (os.path.exists(self.index_path) and os.path.exists(self.metadata_path)):
+                print("Database files not found")
+                return False
+            
+            # Load FAISS index
+            self.index = faiss.read_index(self.index_path)
+            
+            # Load metadata
+            with open(self.metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            # Restore stored items
+            self.stored_items = {}
+            for id_str, item_dict in metadata['stored_items'].items():
+                id = int(id_str)
+                self.stored_items[id] = StoredItem(
+                    text=item_dict['text'],
+                    vector=np.array(item_dict['vector']),
+                    trust_score=item_dict['trust_score'],
+                    positive_score=item_dict['positive_score'],
+                    negative_score=item_dict['negative_score'],
+                    timestamp=item_dict['timestamp'],
+                    vector_id=item_dict['vector_id']
+                )
+            
+            # Restore next_id
+            self.next_id = metadata['next_id']
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error loading database: {e}")
+            return False 

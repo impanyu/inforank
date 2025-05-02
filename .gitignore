@@ -33,4 +33,10 @@ ENV/
 
 # Secrets and Configuration
 config.py
-.env 
+.env
+
+# Database files
+*.bin
+*.json
+faiss_index.*
+metadata.* 

@@ -3,4 +3,5 @@ sentence-transformers>=2.2.2
 numpy>=1.21.0
 openai>=1.0.0
 django>=4.2.0
-djangorestframework>=3.14.0 
+djangorestframework>=3.14.0
+datasets>=2.15.0 
