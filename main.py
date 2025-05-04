@@ -4,6 +4,7 @@ from typing import List, Dict
 import os
 from datasets import load_dataset
 import random
+from data_utils import DataLoader
 
 def load_dataset(dataset_path: str) -> List[str]:
     """Load texts from dataset file"""
@@ -20,78 +21,59 @@ def load_queries(queries_path: str) -> List[str]:
 def load_real_dataset(num_samples: int = 100) -> tuple[List[str], List[str]]:
     """Load real dataset from HuggingFace datasets"""
     print("Loading Wikipedia dataset...")
-    dataset = load_dataset("wikipedia", "20220301.en", split="train")
+    dataset = load_dataset("wikipedia", "20231101.en", split="train")
     
     # Sample random articles
-    samples = random.sample(range(len(dataset)), num_samples)
+    samples = random.sample(range(len(dataset)), min(num_samples, len(dataset)))
     
     texts = []
     queries = []
     for idx in samples:
         article = dataset[idx]
-        # Get a paragraph from the article
+        # Get all paragraphs from the article that are long enough
         paragraphs = [p for p in article['text'].split('\n') if len(p) > 100]
         if paragraphs:
-            texts.append(random.choice(paragraphs))
-            queries.append(article['title'])
+            texts.extend(paragraphs)  # Add all paragraphs
+            queries.append(article['title'])  # Add title for each paragraph
     
     return texts, queries
 
 def main():
-    # Initialize framework
+    # Initialize framework and data loader
     framework = TrustFramework(
         minimal_trustworthiness=0.2,
         consistency_threshold=0.5,
         credulity_factor=0.5,
         db_path="./test_db"
     )
+    data_loader = DataLoader()
     
-    # Check if database already exists
-    if os.path.exists("./test_db/faiss_index.bin"):
-        print("Loading existing database...")
-        if framework.load_db():
-            print("Database loaded successfully")
-        else:
-            print("Failed to load database, starting fresh")
-    
-    # Load dataset and queries
     try:
-        texts, queries = load_real_dataset(num_samples=10)  # Start with 10 samples
+        # Load dataset and decompose into statements
+        query_to_statements = data_loader.load_wikipedia(num_samples=1000)
+        
+        # Save to file for later use
+        data_loader.save_to_json(query_to_statements, './data/processed_dataset.json')
+        
+        # Populate database with all statements
+        all_statements = []
+        for statements in query_to_statements.values():
+            all_statements.extend(statements)
+        
+        print(f"\nPopulating database with {len(all_statements)} statements...")
+        for i, statement in enumerate(all_statements, 1):
+            result = framework.input(statement)
+            print(f"Processed statement {i}/{len(all_statements)}")
+        
+        # Test queries
+        print(f"\nTesting {len(query_to_statements)} queries...")
+        for i, query in enumerate(query_to_statements.keys(), 1):
+            print(f"\nQuery {i}: {query}")
+            result = framework.retrieve(query)
+            print(f"Retrieved: {result}")
+            
     except Exception as e:
-        print(f"Error loading dataset: {e}")
-        print("Falling back to sample data...")
-        texts = [
-            "The Earth orbits around the Sun.",
-            "Water is composed of hydrogen and oxygen.",
-            "Python is a programming language.",
-        ]
-        queries = [
-            "What orbits the Sun?",
-            "Tell me about water composition",
-        ]
-    
-    # Populate database
-    print(f"\nPopulating database with {len(texts)} texts...")
-    for i, text in enumerate(texts, 1):
-        result = framework.input(text)
-        print(f"Processed text {i}/{len(texts)}: {result}")
-    
-    # Save database
-    print("\nSaving database...")
-    if framework.write_db():
-        print("Database saved successfully")
-    else:
-        print("Failed to save database")
-    
-    # Test queries
-    print(f"\nTesting {len(queries)} queries...")
-    for i, query in enumerate(queries, 1):
-        print(f"\nQuery {i}: {query}")
-        result = framework.retrieve(query)
-        print(f"Retrieved text: {result['text']}")
-        print(f"Trust score: {result['trust_score']:.2f}")
-        print(f"Positive score: {result['positive_score']:.2f}")
-        print(f"Negative score: {result['negative_score']:.2f}")
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     main() 

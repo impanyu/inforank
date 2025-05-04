@@ -5,7 +5,7 @@ class LLMPrompts:
 
     # Prompt for decomposing text into smaller units
     DECOMPOSE = (
-        "Break down the following text into 3 smaller, self-contained information units.\n"
+        "Break down the following text into several self-contained information units.\n"
         "Each unit should:\n"
         "1. Be a complete, standalone piece of information\n"
         "2. Retain its original meaning without the surrounding context\n"
@@ -14,7 +14,7 @@ class LLMPrompts:
         "5. Be factually accurate and preserve the original intent\n\n"
         "Text: {text}\n\n"
         "If the text is short(basic) enough and cannot be decomposed, just return 'False', "
-        "else return a JSON list of 3 decomposed text units, one per line."
+        "else return a JSON list of decomposed text units, one per line."
     )
     # prompt for reasoning about if text_1 implied text_2
     IMPLICATION_CHECK = (
